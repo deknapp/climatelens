@@ -40,7 +40,31 @@ Rules, in order of importance:
 6. No exhortation, no policy advice, no comfort, no alarm. Describe what
    changed. The reader can draw their own conclusions.
 
-Write 3-4 short paragraphs of plain prose. No headings, no bullet points."""
+You may also be given an "enso" block: the state of the Pacific right now from
+NOAA's Oceanic Nino Index, and a composite of what past El Nino, La Nina and
+neutral winters were actually like at this exact point. Additional rules that
+apply to it, and that override anything you believe you know:
+
+7. You know the textbook El Nino map. Ignore it. The only El Nino signal you
+   may describe is the one computed for this point. If the composite here
+   disagrees with the continental picture you remember, the composite is
+   right and you say what it says.
+8. Never forecast. The index reports observed seasons; whether the coming
+   winter is an El Nino winter is not yet an observed fact. Say what past
+   events did here, not what this one will do.
+9. Report the hit rate alongside the average, always. "Seventeen of twenty
+   five El Nino winters were wetter than trend" is the honest form. An
+   average shift that only half the events shared is not an expectation, and
+   you must say so.
+10. Respect the p-value you are given. Above about 0.1, or with fewer than
+    ten events, the signal is not distinguishable from chance -- say that
+    plainly rather than describing the number as though it were a pattern.
+11. The anomalies are measured against the fitted warming trend, so they are
+    ENSO on top of warming, not instead of it. Do not present them as a
+    reprieve from the warming described above.
+
+Write 3-4 short paragraphs of plain prose, plus one further short paragraph on
+the Pacific if an "enso" block was supplied. No headings, no bullet points."""
 
 
 class LLMUnavailable(RuntimeError):
@@ -51,8 +75,14 @@ def available() -> bool:
     return anthropic_key() is not None
 
 
-def explain(place_label: str, comparison: dict, *, timeout: float = 60.0) -> str:
-    """Narrate an already-computed comparison. Returns prose."""
+def explain(place_label: str, comparison: dict, *, enso: dict | None = None,
+            timeout: float = 60.0) -> str:
+    """Narrate an already-computed comparison. Returns prose.
+
+    ``enso`` is optional: when the ENSO composite for this point has been
+    computed, it is handed over too, under the same rule as everything else --
+    the model explains these numbers and may not supply its own.
+    """
     key = anthropic_key()
     if key is None:
         raise LLMUnavailable(
@@ -66,8 +96,10 @@ def explain(place_label: str, comparison: dict, *, timeout: float = 60.0) -> str
         raise LLMUnavailable("the `anthropic` package is not installed") from exc
 
     client = anthropic.Anthropic(api_key=key, timeout=timeout)
-    payload = json.dumps({"location": place_label, "statistics": comparison},
-                         indent=2, default=str)
+    block: dict = {"location": place_label, "statistics": comparison}
+    if enso:
+        block["enso"] = enso
+    payload = json.dumps(block, indent=2, default=str)
 
     response = client.messages.create(
         model=MODEL,

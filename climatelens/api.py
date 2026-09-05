@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import data, indicators, llm
+from . import data, enso, indicators, llm
 from .config import BASELINE, GLOBAL_WARMING_C, RECENT, load_dotenv
 
 load_dotenv()
@@ -21,6 +21,11 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("climatelens")
 
 PROJECTION = (2040, 2049)
+
+# The ENSO composite needs every winter NOAA's index covers. Its first is DJF
+# 1950, which begins in December 1949 -- hence the explicit date rather than a
+# year bound.
+ENSO_START = "1949-12-01"
 
 app = FastAPI(
     title="climatelens",
@@ -101,6 +106,58 @@ def api_climate(
     }
 
 
+def _last_complete_winter() -> int:
+    """The most recent year whose December-January-February has fully elapsed.
+
+    Pinned to a whole winter rather than to today so that the cache key moves
+    once a year instead of once a day.
+    """
+    import datetime
+
+    today = datetime.date.today()
+    return today.year if today.month >= 3 else today.year - 1
+
+
+@app.get("/api/enso")
+def api_enso(
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=180),
+) -> dict:
+    """What El Nino and La Nina winters have actually done at this point.
+
+    Deliberately a separate route from /api/climate: it is a different
+    question over a different record, it is slower, and the page should render
+    the warming numbers without waiting on it.
+    """
+    import calendar
+
+    end_year = _last_complete_winter()
+    last_day = calendar.monthrange(end_year, 2)[1]
+    try:
+        oni = data.oni_index()
+        daily = data.era5_range(latitude, longitude, ENSO_START,
+                                f"{end_year}-02-{last_day:02d}",
+                                variables=data.ENSO_VARS)
+    except data.DataError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    report = enso.report(oni, daily)
+    return {
+        "latitude": latitude,
+        "longitude": longitude,
+        "sources": {
+            "index": "Oceanic Nino Index, NOAA Climate Prediction Center",
+            "observed": "ERA5 reanalysis (ECMWF), via Open-Meteo",
+        },
+        "thresholds": {
+            "el_nino_c": enso.EL_NINO_C,
+            "la_nina_c": enso.LA_NINA_C,
+            "strong_c": enso.STRONG_C,
+        },
+        **report.to_dict(),
+    }
+
+
 @app.post("/api/explain")
 def api_explain(body: dict) -> JSONResponse:
     """Narrate a comparison the client already has. Server-side key only."""
@@ -108,8 +165,11 @@ def api_explain(body: dict) -> JSONResponse:
     comparison = body.get("comparison")
     if not isinstance(comparison, dict):
         raise HTTPException(status_code=400, detail="comparison object required")
+    enso_report = body.get("enso")
+    if not isinstance(enso_report, dict):
+        enso_report = None
     try:
-        return JSONResponse({"text": llm.explain(label, comparison)})
+        return JSONResponse({"text": llm.explain(label, comparison, enso=enso_report)})
     except llm.LLMUnavailable as exc:
         return JSONResponse({"text": None, "reason": str(exc)}, status_code=503)
     except Exception as exc:  # noqa: BLE001 - surface upstream failure, not a key
