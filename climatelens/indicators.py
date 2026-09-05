@@ -155,14 +155,26 @@ def _delta(a: float | None, b: float | None) -> float | None:
 
 
 def compare(baseline: Normal, recent: Normal, projection: Normal | None = None,
-            global_warming_c: float | None = None) -> Comparison:
-    """Baseline vs recent (vs projection), with the deltas spelled out."""
+            global_warming_c: float | None = None,
+            projection_baseline: Normal | None = None) -> Comparison:
+    """Baseline vs recent (vs projection), with the deltas spelled out.
+
+    The projection deltas need care. A climate model's *absolute* temperature
+    carries its own systematic bias, so subtracting an ERA5 baseline from a
+    CMIP6 future would report that bias as though it were warming. The standard
+    fix is the delta-change method: take the model's future minus the *model's
+    own* baseline, so the bias cancels.
+
+    `projection_baseline` is that model baseline. Without it, no projection
+    delta is reported at all -- an absent number beats a wrong one.
+    """
     fields = ["mean_c", "mean_max_c", "mean_min_c", "hot_days", "very_hot_days",
               "warm_nights", "frost_days", "growing_season_days"]
     deltas = {f: _delta(getattr(baseline, f), getattr(recent, f)) for f in fields}
-    if projection is not None:
+    if projection is not None and projection_baseline is not None:
         for f in fields:
-            deltas[f"{f}_2050"] = _delta(getattr(baseline, f), getattr(projection, f))
+            deltas[f"{f}_2050"] = _delta(getattr(projection_baseline, f),
+                                         getattr(projection, f))
     return Comparison(
         baseline=baseline,
         recent=recent,

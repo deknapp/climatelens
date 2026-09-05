@@ -69,17 +69,24 @@ def api_climate(
     base = indicators.normal(base_daily, *BASELINE)
     recent = indicators.normal(recent_daily, *RECENT)
 
-    proj = None
+    proj = proj_base = None
     if projection:
         try:
-            proj_daily = data.cmip6_daily(latitude, longitude, *PROJECTION)
-            proj = indicators.normal(proj_daily, *PROJECTION)
+            # Both windows come from the same model so its systematic bias
+            # cancels in the difference -- see indicators.compare().
+            proj = indicators.normal(
+                data.cmip6_daily(latitude, longitude, *PROJECTION), *PROJECTION)
+            proj_base = indicators.normal(
+                data.cmip6_daily(latitude, longitude, *BASELINE), *BASELINE)
         except data.DataError as exc:
             # A missing projection is not fatal -- the observed record is the
             # headline and stands on its own.
             log.warning("projection unavailable for %s,%s: %s", latitude, longitude, exc)
+            proj = proj_base = None
 
-    comparison = indicators.compare(base, recent, proj, global_warming_c=GLOBAL_WARMING_C)
+    comparison = indicators.compare(base, recent, proj,
+                                    global_warming_c=GLOBAL_WARMING_C,
+                                    projection_baseline=proj_base)
     return {
         "latitude": latitude,
         "longitude": longitude,

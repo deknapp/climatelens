@@ -47,6 +47,29 @@ a week longer.
 
 None of them require an API key.
 
+### One methodological note
+
+A climate model's *absolute* temperature carries its own systematic bias, so
+subtracting an ERA5 baseline from a CMIP6 future would report that bias as
+though it were warming. The projection here therefore uses the **delta-change
+method**: the model's 2040s minus the *same model's* 1951–1980, so the bias
+cancels. Without a model baseline to debias against, no projection delta is
+reported at all — an absent number beats a wrong one.
+
+In practice Open-Meteo's downscaled product turns out to be bias-corrected
+against ERA5 already — measured across four very different climates the
+disagreement over the same window is at most 0.08 °C:
+
+| | ERA5 1951–1980 | CMIP6 1951–1980 | bias |
+|---|---|---|---|
+| Santa Fe, NM | 8.99 °C | 8.99 °C | +0.00 |
+| Reykjavík | 3.64 °C | 3.56 °C | −0.08 |
+| Nairobi | 18.28 °C | 18.26 °C | −0.02 |
+| Jakarta | 25.86 °C | 25.85 °C | −0.01 |
+
+So the correction changes almost nothing today. It stays in because the code
+should not quietly depend on a data vendor happening to debias for us.
+
 ## What it does not claim
 
 - **ERA5 is a ~25 km gridded reanalysis, not a weather station.** These are the
@@ -94,7 +117,7 @@ tests/
 ```
 
 ```bash
-.venv/bin/python -m pytest      # 11 tests
+.venv/bin/python -m pytest      # 13 tests
 ```
 
 ## Configuration

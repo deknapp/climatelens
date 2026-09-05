@@ -84,3 +84,27 @@ def test_nulls_propagate_rather_than_inventing_a_delta():
     c = indicators.compare(empty, real)
     assert c.warming_c is None
     assert c.deltas["hot_days"] is None
+
+
+def test_projection_delta_cancels_model_bias():
+    """A model running 3 C warm than reanalysis but with 2 C of warming must
+    report 2 C, not 5 C. This is the delta-change method."""
+    obs_base = indicators.normal(series(1951, 1980, lambda d: 20.0, lambda d: 10.0), 1951, 1980)
+    obs_recent = indicators.normal(series(1995, 2024, lambda d: 21.0, lambda d: 11.0), 1995, 2024)
+    # Same model, both windows, carrying a +3 C warm bias throughout.
+    mod_base = indicators.normal(series(1951, 1980, lambda d: 23.0, lambda d: 13.0), 1951, 1980)
+    mod_future = indicators.normal(series(2040, 2049, lambda d: 25.0, lambda d: 15.0), 2040, 2049)
+
+    c = indicators.compare(obs_base, obs_recent, mod_future,
+                           projection_baseline=mod_base)
+    assert c.deltas["mean_c"] == pytest.approx(1.0)        # observed warming
+    assert c.deltas["mean_c_2050"] == pytest.approx(2.0)   # bias cancelled
+
+
+def test_projection_delta_is_withheld_without_a_model_baseline():
+    """No model baseline means we cannot debias, so we report nothing."""
+    obs_base = indicators.normal(series(1951, 1980, lambda d: 20.0, lambda d: 10.0), 1951, 1980)
+    obs_recent = indicators.normal(series(1995, 2024, lambda d: 21.0, lambda d: 11.0), 1995, 2024)
+    mod_future = indicators.normal(series(2040, 2049, lambda d: 25.0, lambda d: 15.0), 2040, 2049)
+    c = indicators.compare(obs_base, obs_recent, mod_future)
+    assert "mean_c_2050" not in c.deltas
