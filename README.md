@@ -33,6 +33,8 @@ between them:
 
 Then the same indicators from a downscaled CMIP6 model for the 2040s.
 
+And separately, **what El Niño has actually meant at this point** — see below.
+
 Santa Fe, New Mexico, for example: **+1.17 °C**, just under the global +1.28 °C
 over the same period — but **19.5 fewer frost days a year** and a growing season
 a week longer.
@@ -44,6 +46,7 @@ a week longer.
 | [ERA5](https://www.ecmwf.int/en/forecasts/dataset/ecmwf-reanalysis-v5) (ECMWF), via Open-Meteo | the standard reanalysis record of what the weather actually was, 1940→present |
 | CMIP6 downscaled, via Open-Meteo | the model intercomparison underlying the IPCC assessment reports |
 | [Open-Meteo](https://open-meteo.com/) geocoding | place name → coordinates |
+| [Oceanic Niño Index](https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt), NOAA CPC | which winters since 1950 were El Niño, La Niña, or neutral |
 
 None of them require an API key.
 
@@ -70,6 +73,58 @@ disagreement over the same window is at most 0.08 °C:
 So the correction changes almost nothing today. It stays in because the code
 should not quietly depend on a data vendor happening to debias for us.
 
+## El Niño, for one place
+
+An El Niño gets announced and the local question goes unanswered: *what does
+that mean here?* The usual answer is a continental map with a few arrows on
+it. This computes the answer for a point instead.
+
+NOAA's index says which winters since 1950 were El Niño. ERA5 says what those
+winters were actually like at the chosen coordinates. The gap between the El
+Niño winters and the rest is the answer, and three things keep it from
+overclaiming:
+
+**Detrending.** El Niño winters are not spread evenly through the record, and
+the climate warmed underneath the whole thing. Composited raw, a recent-leaning
+set of events reports global warming as though it were an ENSO signal — in a
+synthetic record with a pure trend and no ENSO signal at all, the naive version
+reports 0.88 °C of El Niño warming that does not exist. Every anomaly here is
+measured against the fitted trend across all winters instead.
+
+**A hit rate, not just an average.** One winter is coming, not twenty-five.
+Santa Fe's El Niño winters average 122% of normal precipitation, but the number
+that answers the actual question is that **17 of 25 were wetter**. Eleven of
+twenty-five would be a coin flip however large the mean.
+
+**A permutation test.** With twenty-odd events a composite difference can look
+convincing and mean nothing. Shuffling the labels ten thousand times and
+counting how often chance does as well is the cheapest honest check, and needs
+no distribution tables and no dependency. Santa Fe's precipitation signal
+survives at p = 0.004. Its seven *strong* El Niño winters do not survive at all,
+and the page says so rather than quietly reporting their mean as a fact.
+
+Validation, against places whose teleconnection is independently known:
+
+| | Winter temperature | Winter precipitation |
+|---|---|---|
+| **Lima** | +0.54 °C, 20 of 25, p = 0.0001 | 91% of normal, not significant |
+| **Santa Fe** | −0.55 °C, 16 of 25, p = 0.039 | 122% of normal, 17 of 25, p = 0.004 |
+| **Seattle** | +0.40 °C, 19 of 25, p = 0.026 | 95% of normal, not significant |
+
+Lima sits beside the Niño 3.4 region the index is defined on, and shows the
+strongest signal in the set — which is the sanity check working.
+
+The composite covers **December–February only**, because that is when ENSO
+peaks and when its influence away from the tropics is strongest. That is a real
+limitation, not a hidden one: the Indonesian and eastern Australian droughts
+peak in the dry season, roughly June to November, so Jakarta and Sydney look
+quiet here even though their teleconnection is strong and well established. A
+weak result in this window is not evidence of no signal.
+
+Nothing in this section forecasts. The index reports observed seasons; whether
+the coming winter is an El Niño winter is not yet an observed fact, and this
+app does not assert things that are not.
+
 ## What it does not claim
 
 - **ERA5 is a ~25 km gridded reanalysis, not a weather station.** These are the
@@ -82,6 +137,11 @@ should not quietly depend on a data vendor happening to debias for us.
 - **Attribution is not causation-per-location.** This shows what changed at a
   point. Formal attribution of a local change to anthropogenic forcing is a
   separate and harder problem.
+- **The ENSO composite is history, not a forecast.** It says what past El Niño
+  winters did here. It does not say what the next one will do, and a hit rate
+  of 17 in 25 is exactly as uncertain as it sounds.
+- **ERA5 precipitation is a model-assimilated field, not a rain gauge.** Its
+  totals are less trustworthy than its temperatures, most of all in mountains.
 
 ## Architecture
 
@@ -108,16 +168,18 @@ climatelens/
 ├── config.py       baseline windows, thresholds, env-only secrets
 ├── data.py         Open-Meteo clients (ERA5, CMIP6, geocoding) + disk cache
 ├── indicators.py   the seven indicators — pure functions, no I/O, no model
+├── enso.py         the El Niño composite — detrending, hit rates, permutation test
 ├── llm.py          the narration call; key from env, never serialised
 ├── api.py          FastAPI routes
 └── static/         the page
 tests/
 ├── test_indicators.py   indicators against hand-built series
+├── test_enso.py         the composite, including that detrending really works
 └── test_privacy.py      the key cannot reach the tree or the browser
 ```
 
 ```bash
-.venv/bin/python -m pytest      # 13 tests
+.venv/bin/python -m pytest      # 28 tests
 ```
 
 ## Configuration
@@ -125,7 +187,9 @@ tests/
 Copy `.env.example` to `.env` (git-ignored). Everything in it is optional:
 
 - `ANTHROPIC_API_KEY` — enables the written summary. Without it every number
-  still renders; only the prose is switched off.
+  still renders; only the prose is switched off. Read on the server only: the
+  browser never sees it, and `/api/health` reports whether narration is on
+  without ever revealing the key itself.
 - `CLIMATELENS_MODEL` — defaults to `claude-opus-5`.
 - `CLIMATELENS_PORT` — defaults to 8099.
 
