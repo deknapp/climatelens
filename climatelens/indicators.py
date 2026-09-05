@@ -12,6 +12,7 @@ weather.
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Iterable, Sequence
@@ -40,9 +41,15 @@ class Normal:
     growing_season_days: float | None = None
     first_frost_doy: float | None = None
     last_frost_doy: float | None = None
+    # One mean per year in the window. Kept because the headline number is a
+    # difference of two thirty-year means, and thirty is a small enough sample
+    # that the difference deserves an interval around it.
+    annual_means: list[float] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return {k: v for k, v in self.__dict__.items()}
+        # The annual series is an input to the interval, not a figure anyone
+        # reads, and it would triple the size of every response.
+        return {k: v for k, v in self.__dict__.items() if k != "annual_means"}
 
 
 @dataclass
@@ -53,6 +60,7 @@ class Comparison:
     recent: Normal
     projection: Normal | None = None
     warming_c: float | None = None
+    warming_ci: tuple[float, float] | None = None
     global_warming_c: float | None = None
     deltas: dict = field(default_factory=dict)
 
@@ -62,6 +70,7 @@ class Comparison:
             "recent": self.recent.to_dict(),
             "projection": self.projection.to_dict() if self.projection else None,
             "warming_c": self.warming_c,
+            "warming_ci": list(self.warming_ci) if self.warming_ci else None,
             "global_warming_c": self.global_warming_c,
             "deltas": self.deltas,
         }
@@ -144,6 +153,7 @@ def normal(daily: dict, start_year: int, end_year: int,
 
     g_max = _by_year(times, tmax)
     g_min = _by_year(times, tmin)
+    g_mean = _by_year(times, tmean)
 
     southern = latitude is not None and latitude < 0
     last_f, first_f, season = _frost_dates(_by_year(times, tmin), southern)
@@ -162,7 +172,52 @@ def normal(daily: dict, start_year: int, end_year: int,
         growing_season_days=season,
         first_frost_doy=first_f,
         last_frost_doy=last_f,
+        annual_means=[sum(v for _, v in days) / len(days)
+                      for _, days in sorted(g_mean.items())
+                      if len(days) >= 350],
     )
+
+
+BOOTSTRAP_RESAMPLES = 10_000
+BOOTSTRAP_SEED = 20260905  # fixed, so the same place reloads to the same interval
+
+
+def warming_interval(baseline: Normal, recent: Normal, *,
+                     confidence: float = 0.95,
+                     resamples: int = BOOTSTRAP_RESAMPLES
+                     ) -> tuple[float, float] | None:
+    """A 95% interval on the headline warming number, by bootstrap.
+
+    The headline is a difference between two thirty-year means, and thirty is
+    a small sample. Reporting it as a bare point estimate implies a precision
+    the record does not carry, next to an ENSO panel that puts a p-value on
+    everything -- so it gets an interval, computed the same dependency-free
+    way: resample each window's annual means with replacement, recompute the
+    difference, and read the percentiles off the resulting distribution.
+
+    What this covers is the year-to-year variability of the two windows. It
+    does NOT cover ERA5's own observational uncertainty, and it treats the
+    warming trend inside each window as though it were noise, which widens the
+    interval slightly. Both directions are stated on the page rather than
+    buried here.
+    """
+    a, b = baseline.annual_means, recent.annual_means
+    if len(a) < 10 or len(b) < 10:
+        return None
+
+    rng = random.Random(BOOTSTRAP_SEED)
+    na, nb = len(a), len(b)
+    diffs = []
+    for _ in range(resamples):
+        sa = sum(a[rng.randrange(na)] for _ in range(na)) / na
+        sb = sum(b[rng.randrange(nb)] for _ in range(nb)) / nb
+        diffs.append(sb - sa)
+    diffs.sort()
+
+    tail = (1.0 - confidence) / 2.0
+    lo = diffs[max(0, int(tail * resamples) - 1)]
+    hi = diffs[min(resamples - 1, int((1.0 - tail) * resamples))]
+    return (lo, hi)
 
 
 def _delta(a: float | None, b: float | None) -> float | None:
@@ -195,6 +250,7 @@ def compare(baseline: Normal, recent: Normal, projection: Normal | None = None,
         recent=recent,
         projection=projection,
         warming_c=deltas.get("mean_c"),
+        warming_ci=warming_interval(baseline, recent),
         global_warming_c=global_warming_c,
         deltas=deltas,
     )

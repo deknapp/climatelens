@@ -47,6 +47,7 @@
   .headline .since { color:var(--muted); font-size:14px; }
   .vsglobal { margin-top:14px; padding-top:14px; border-top:1px solid var(--line);
               font-size:14px; color:var(--muted); }
+  .ci { margin-top:8px; font-size:13px; color:var(--muted); max-width:58ch; }
   .grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
           margin-top:10px; }
   .card { background:var(--panel); border:1px solid var(--line);
@@ -204,22 +205,37 @@ function card(title, delta, unit, base, recent, decimals=0, invert=false) {
 
 function render(place, d) {
   const w = d.warming_c, g = d.global_warming_c, b = d.baseline, r = d.recent, p = d.projection;
-  const ratio = (w !== null && g) ? w / g : null;
+  const ci = d.warming_ci;
+
+  // Whether this place is warming faster than the planet is a claim about two
+  // numbers, one of which has only a thirty-year sample behind it. If the
+  // interval covers the global figure, this record cannot tell them apart --
+  // so say that, rather than reporting the sign of a difference that sits
+  // inside the noise. Santa Fe is exactly this case.
   let vs = "";
-  if (ratio !== null) {
-    const pct = Math.round(Math.abs(ratio - 1) * 100);
-    vs = ratio > 1.05
-      ? `That is <strong>${pct}% more</strong> than the global average of ${g} °C over the same period — this place is warming faster than the planet as a whole.`
-      : ratio < 0.95
-      ? `That is <strong>${pct}% less</strong> than the global average of ${g} °C — this place is warming more slowly than the planet as a whole.`
-      : `That is close to the global average of ${g} °C.`;
+  if (w !== null && w !== undefined && g) {
+    const pct = Math.round(Math.abs(w / g - 1) * 100);
+    const separated = ci ? (ci[0] > g || ci[1] < g) : Math.abs(w / g - 1) > 0.05;
+    if (!separated) {
+      vs = ci
+        ? `The global average over the same period is ${g} °C. This record cannot separate the two — the interval here spans it.`
+        : `The global average over the same period is ${g} °C, close enough that the difference here is sampling noise.`;
+    } else if (w > g) {
+      vs = `That is <strong>${pct}% more</strong> than the global average of ${g} °C over the same period — warming faster than the planet as a whole, by more than the interval can explain.`;
+    } else {
+      vs = `That is <strong>${pct}% less</strong> than the global average of ${g} °C — warming more slowly than the planet as a whole, by more than the interval can explain.`;
+    }
   }
+  const ciLine = ci
+    ? `<div class="ci">95% interval <strong>${signed(ci[0],2)} to ${signed(ci[1],2)} °C</strong>, bootstrapped from the thirty annual means in each window. It covers year-to-year variability, not ERA5's own observational uncertainty.</div>`
+    : "";
 
   $("#out").innerHTML = `
     <div class="headline">
       <div class="place">${place.label}</div>
       <div class="big ${w < 0 ? "cooler" : ""}">${signed(w, 1)} °C</div>
       <div class="since">annual mean temperature, 1951–1980 → 1995–2024</div>
+      ${ciLine}
       ${vs ? `<div class="vsglobal">${vs}</div>` : ""}
     </div>
     <div class="grid">

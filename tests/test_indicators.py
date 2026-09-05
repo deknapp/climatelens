@@ -122,3 +122,43 @@ def test_southern_hemisphere_growing_season_is_withheld_not_reversed():
 
     north = indicators.normal(daily, 1951, 1980, latitude=40.7)    # New York
     assert north.growing_season_days is not None
+
+
+# --- the interval on the headline number ----------------------------------
+
+def test_warming_interval_brackets_the_point_estimate():
+    base = indicators.Normal(1951, 1980, 30, annual_means=[10.0 + (i % 5) * 0.2
+                                                           for i in range(30)])
+    recent = indicators.Normal(1995, 2024, 30, annual_means=[11.0 + (i % 5) * 0.2
+                                                             for i in range(30)])
+    lo, hi = indicators.warming_interval(base, recent, resamples=2000)
+    assert lo < 1.0 < hi
+
+
+def test_a_noisier_record_gets_a_wider_interval():
+    """The interval has to respond to variability, or it is decoration."""
+    quiet_b = indicators.Normal(1951, 1980, 30, annual_means=[10.0] * 30)
+    quiet_r = indicators.Normal(1995, 2024, 30, annual_means=[11.0] * 30)
+    noisy_b = indicators.Normal(1951, 1980, 30,
+                                annual_means=[10.0 + (3.0 if i % 2 else -3.0)
+                                              for i in range(30)])
+    noisy_r = indicators.Normal(1995, 2024, 30,
+                                annual_means=[11.0 + (3.0 if i % 2 else -3.0)
+                                              for i in range(30)])
+    q = indicators.warming_interval(quiet_b, quiet_r, resamples=2000)
+    n = indicators.warming_interval(noisy_b, noisy_r, resamples=2000)
+    assert (q[1] - q[0]) == 0.0          # no variability, no interval
+    assert (n[1] - n[0]) > 1.0
+
+
+def test_no_interval_without_enough_years():
+    thin = indicators.Normal(2020, 2024, 5, annual_means=[10.0] * 5)
+    full = indicators.Normal(1995, 2024, 30, annual_means=[11.0] * 30)
+    assert indicators.warming_interval(thin, full) is None
+
+
+def test_interval_is_reproducible():
+    """A seeded bootstrap, so reloading a page does not move the number."""
+    b = indicators.Normal(1951, 1980, 30, annual_means=[10.0 + i * 0.05 for i in range(30)])
+    r = indicators.Normal(1995, 2024, 30, annual_means=[11.0 + i * 0.05 for i in range(30)])
+    assert indicators.warming_interval(b, r) == indicators.warming_interval(b, r)
