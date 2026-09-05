@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>climatelens</title>
+<style>
+  :root {
+    --bg:#fbfaf7; --panel:#fff; --ink:#16181d; --muted:#6b7280; --line:#e5e3dd;
+    --warm:#c2410c; --cool:#0369a1; --accent:#1f2937;
+    --radius:10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111317; --panel:#181b21; --ink:#e8eaed; --muted:#9aa1ab;
+            --line:#262a32; --warm:#fb923c; --cool:#38bdf8; --accent:#e8eaed; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
+  .wrap { max-width:920px; margin:0 auto; padding:40px 22px 80px; }
+  header h1 { font-size:26px; margin:0 0 4px; letter-spacing:-.02em; }
+  header p { margin:0 0 28px; color:var(--muted); max-width:60ch; }
+  .search { display:flex; gap:8px; }
+  input[type=search] {
+    flex:1; padding:12px 14px; font-size:16px; border:1px solid var(--line);
+    border-radius:var(--radius); background:var(--panel); color:var(--ink);
+  }
+  input[type=search]:focus { outline:2px solid var(--cool); outline-offset:-1px; }
+  button {
+    padding:12px 18px; font-size:15px; border:0; border-radius:var(--radius);
+    background:var(--accent); color:var(--bg); cursor:pointer; font-weight:600;
+  }
+  button:disabled { opacity:.5; cursor:default; }
+  .results { margin:10px 0 0; padding:0; list-style:none; }
+  .results li { border:1px solid var(--line); border-radius:var(--radius);
+                background:var(--panel); margin-bottom:6px; }
+  .results button { width:100%; text-align:left; background:none; color:var(--ink);
+                    font-weight:400; padding:11px 14px; }
+  .results small { color:var(--muted); }
+  .status { color:var(--muted); padding:18px 0; }
+  .headline { margin:32px 0 8px; padding:26px; background:var(--panel);
+              border:1px solid var(--line); border-radius:var(--radius); }
+  .headline .place { color:var(--muted); font-size:14px; }
+  .big { font-size:52px; font-weight:700; letter-spacing:-.03em; line-height:1.05;
+         margin:6px 0 2px; color:var(--warm); }
+  .big.cooler { color:var(--cool); }
+  .headline .since { color:var(--muted); font-size:14px; }
+  .vsglobal { margin-top:14px; padding-top:14px; border-top:1px solid var(--line);
+              font-size:14px; color:var(--muted); }
+  .grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+          margin-top:10px; }
+  .card { background:var(--panel); border:1px solid var(--line);
+          border-radius:var(--radius); padding:16px 18px; }
+  .card h3 { margin:0 0 2px; font-size:13px; font-weight:600; color:var(--muted);
+             text-transform:uppercase; letter-spacing:.04em; }
+  .card .delta { font-size:26px; font-weight:700; letter-spacing:-.02em; }
+  .card .rowline { font-size:13px; color:var(--muted); margin-top:5px; }
+  .up { color:var(--warm); } .down { color:var(--cool); }
+  .bar { height:5px; border-radius:3px; background:var(--line); margin-top:10px;
+         position:relative; overflow:hidden; }
+  .bar i { position:absolute; inset:0 auto 0 0; border-radius:3px; }
+  .narr { margin-top:26px; padding:24px 26px; background:var(--panel);
+          border:1px solid var(--line); border-radius:var(--radius); }
+  .narr h2 { margin:0 0 10px; font-size:14px; text-transform:uppercase;
+             letter-spacing:.04em; color:var(--muted); }
+  .narr p { margin:0 0 12px; }
+  .narr p:last-child { margin:0; }
+  footer { margin-top:38px; font-size:13px; color:var(--muted); line-height:1.6; }
+  footer code { font-size:12px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>climatelens</h1>
+    <p>Pick anywhere on Earth and see what has already changed there — measured
+       against a 1951–1980 baseline, computed from ERA5 reanalysis rather than
+       recalled from memory.</p>
+  </header>
+
+  <form class="search" id="form">
+    <input type="search" id="q" placeholder="A city, town, or region — anywhere in the world"
+           autocomplete="off" required>
+    <button type="submit" id="go">Search</button>
+  </form>
+  <ul class="results" id="results"></ul>
+
+  <div class="status hidden" id="status"></div>
+  <div id="out"></div>
+
+  <footer>
+    <p><strong>Observed:</strong> ERA5 reanalysis (ECMWF) via Open-Meteo — a ~25 km
+    gridded record, not the thermometer at your local airport. Two thirty-year
+    climate normals are compared: <strong>1951–1980</strong> (the NASA GISTEMP
+    baseline convention) against <strong>1995–2024</strong>.</p>
+    <p><strong>Projected:</strong> one downscaled CMIP6 model for the 2040s. One
+    model under one scenario — a projection, not a forecast.</p>
+    <p>Every number here is computed from that data. The written summary is
+    generated by Claude from those same computed numbers and is not permitted to
+    introduce any of its own.</p>
+  </footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt = (v, d=1) => v === null || v === undefined ? "—" : v.toFixed(d);
+const signed = (v, d=1) => v === null || v === undefined ? "—" : (v>0?"+":"") + v.toFixed(d);
+
+function setStatus(msg) {
+  const el = $("#status");
+  if (!msg) { el.classList.add("hidden"); return; }
+  el.textContent = msg; el.classList.remove("hidden");
+}
+
+$("#form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const q = $("#q").value.trim();
+  if (!q) return;
+  $("#results").innerHTML = ""; $("#out").innerHTML = "";
+  setStatus("Searching…");
+  try {
+    const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+    const { results } = await r.json();
+    setStatus(results.length ? "" : "No place by that name.");
+    // Always list every match. "Santa Fe" is in Argentina before New Mexico.
+    $("#results").innerHTML = results.map((p, i) =>
+      `<li><button data-i="${i}">${p.name}
+        <small>— ${[p.admin1, p.country].filter(Boolean).join(", ")}</small></button></li>`
+    ).join("");
+    $("#results").querySelectorAll("button").forEach(b =>
+      b.onclick = () => load(results[b.dataset.i]));
+  } catch (err) { setStatus("Search failed: " + err.message); }
+});
+
+async function load(place) {
+  $("#results").innerHTML = ""; $("#out").innerHTML = "";
+  setStatus(`Reading 74 years of daily temperature for ${place.label}… this takes a moment the first time.`);
+  let d;
+  try {
+    const r = await fetch(`/api/climate?latitude=${place.latitude}&longitude=${place.longitude}`);
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    d = await r.json();
+  } catch (err) { return setStatus("Could not load climate data: " + err.message); }
+  setStatus("");
+  render(place, d);
+  narrate(place, d);
+}
+
+function card(title, delta, unit, base, recent, decimals=0, invert=false) {
+  if (delta === null || delta === undefined) return "";
+  const cls = (invert ? -delta : delta) > 0 ? "up" : "down";
+  return `<div class="card">
+    <h3>${title}</h3>
+    <div class="delta ${cls}">${signed(delta, decimals)}${unit}</div>
+    <div class="rowline">${fmt(base, decimals)} → ${fmt(recent, decimals)} ${unit} per year</div>
+  </div>`;
+}
+
+function render(place, d) {
+  const w = d.warming_c, g = d.global_warming_c, b = d.baseline, r = d.recent, p = d.projection;
+  const ratio = (w !== null && g) ? w / g : null;
+  let vs = "";
+  if (ratio !== null) {
+    const pct = Math.round(Math.abs(ratio - 1) * 100);
+    vs = ratio > 1.05
+      ? `That is <strong>${pct}% more</strong> than the global average of ${g} °C over the same period — this place is warming faster than the planet as a whole.`
+      : ratio < 0.95
+      ? `That is <strong>${pct}% less</strong> than the global average of ${g} °C — this place is warming more slowly than the planet as a whole.`
+      : `That is close to the global average of ${g} °C.`;
+  }
+
+  $("#out").innerHTML = `
+    <div class="headline">
+      <div class="place">${place.label}</div>
+      <div class="big ${w < 0 ? "cooler" : ""}">${signed(w, 1)} °C</div>
+      <div class="since">annual mean temperature, 1951–1980 → 1995–2024</div>
+      ${vs ? `<div class="vsglobal">${vs}</div>` : ""}
+    </div>
+    <div class="grid">
+      ${card("Days above 32 °C", d.deltas.hot_days, " days", b.hot_days, r.hot_days)}
+      ${card("Days above 35 °C", d.deltas.very_hot_days, " days", b.very_hot_days, r.very_hot_days)}
+      ${card("Nights above 20 °C", d.deltas.warm_nights, " nights", b.warm_nights, r.warm_nights)}
+      ${card("Frost days", d.deltas.frost_days, " days", b.frost_days, r.frost_days, 0, true)}
+      ${card("Growing season", d.deltas.growing_season_days, " days", b.growing_season_days, r.growing_season_days)}
+      ${card("Warmest-of-day mean", d.deltas.mean_max_c, " °C", b.mean_max_c, r.mean_max_c, 1)}
+    </div>
+    ${p ? `<div class="grid"><div class="card" style="grid-column:1/-1">
+        <h3>Projected — ${p.start_year}s, CMIP6</h3>
+        <div class="delta up">${signed(d.deltas.mean_c_2050, 1)} °C</div>
+        <div class="rowline">annual mean against the same 1951–1980 baseline &middot;
+          ${d.deltas.hot_days_2050 !== null && d.deltas.hot_days_2050 !== undefined
+            ? `${signed(d.deltas.hot_days_2050,0)} days above 32 °C` : ""}</div>
+      </div></div>` : ""}
+    <div class="narr hidden" id="narr"><h2>What this means here</h2><div id="narrbody"></div></div>`;
+}
+
+async function narrate(place, d) {
+  const box = $("#narr"), body = $("#narrbody");
+  box.classList.remove("hidden");
+  body.innerHTML = "<p style='color:var(--muted)'>Writing…</p>";
+  try {
+    const r = await fetch("/api/explain", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ label: place.label, comparison: {
+        baseline: d.baseline, recent: d.recent, projection: d.projection,
+        warming_c: d.warming_c, global_warming_c: d.global_warming_c, deltas: d.deltas }})
+    });
+    const j = await r.json();
+    if (!j.text) {
+      body.innerHTML = `<p style="color:var(--muted)">${j.reason || j.detail ||
+        "Narration unavailable."} Every number above is unaffected.</p>`;
+      return;
+    }
+    body.innerHTML = j.text.split(/\n\n+/).map(p => `<p>${p}</p>`).join("");
+  } catch (err) {
+    body.innerHTML = `<p style="color:var(--muted)">Narration failed. The numbers above stand on their own.</p>`;
+  }
+}
+</script>
+</body>
+</html>
