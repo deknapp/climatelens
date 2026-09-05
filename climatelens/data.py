@@ -19,7 +19,7 @@ import hashlib
 import json
 import time
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, Sequence
 
 import httpx
 
@@ -29,10 +29,20 @@ GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 CLIMATE_URL = "https://climate-api.open-meteo.com/v1/climate"
 
+# NOAA CPC's Oceanic Nino Index: the official ENSO yardstick. A plain text
+# table, no key, updated monthly, back to 1950. Each row is a three-month
+# season and its sea-surface temperature anomaly in the Nino 3.4 region.
+ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
+
 # ERA5 is a gridded reanalysis, not a weather station. Roughly 25 km per cell.
 ERA5_GRID_KM = 25
 
 DAILY_VARS = ["temperature_2m_max", "temperature_2m_min", "temperature_2m_mean"]
+
+# The ENSO composite needs precipitation as well as temperature: for most
+# places the El Nino signal shows up in how wet the winter is long before it
+# shows up in how warm it is.
+ENSO_VARS = ["temperature_2m_mean", "precipitation_sum"]
 
 # One CMIP6 model, chosen because Open-Meteo downscales it to 5 km and it covers
 # the full 1950-2050 span. Named in the UI so the choice is visible, not hidden.
@@ -106,6 +116,66 @@ def _get(url: str, params: dict[str, Any], *, cache: str | None = None,
     raise DataError(f"could not reach {url}: {last}")
 
 
+def _get_text(url: str, *, cache: str, ttl_hours: float = 24.0,
+              timeout: float = 60.0, retries: int = 3) -> str:
+    """GET a plain text file, cached on disk with an expiry.
+
+    Unlike the climate archives, this one does change: NOAA appends a row each
+    month. So the cache has a time to live rather than living forever.
+    """
+    path = _cache_path(cache, url)
+    if path.exists():
+        age_hours = (time.time() - path.stat().st_mtime) / 3600
+        if age_hours < ttl_hours:
+            try:
+                return json.loads(path.read_text())["text"]
+            except (json.JSONDecodeError, KeyError):
+                path.unlink(missing_ok=True)
+
+    last: Exception | None = None
+    for attempt in range(retries):
+        try:
+            resp = httpx.get(url, timeout=timeout)
+            resp.raise_for_status()
+            path.write_text(json.dumps({"text": resp.text}))
+            return resp.text
+        except httpx.HTTPError as exc:
+            last = exc
+            time.sleep(1.5 * (attempt + 1))
+
+    # A stale copy beats no answer at all -- the index only moves once a month.
+    if path.exists():
+        try:
+            return json.loads(path.read_text())["text"]
+        except (json.JSONDecodeError, KeyError):
+            pass
+    raise DataError(f"could not reach {url}: {last}")
+
+
+def oni_index() -> list[dict[str, Any]]:
+    """The full ONI record: one row per overlapping three-month season.
+
+    Returns ``[{"season": "DJF", "year": 1950, "anomaly": -1.32}, ...]`` in
+    chronological order. The year on a DJF row is the year of its January --
+    NOAA's convention, and the one every El Nino event is named after.
+    """
+    text = _get_text(ONI_URL, cache="oni")
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) != 4 or parts[0] == "SEAS":
+            continue
+        season, year, _total, anomaly = parts
+        try:
+            rows.append({"season": season, "year": int(year),
+                         "anomaly": float(anomaly)})
+        except ValueError:
+            continue
+    if not rows:
+        raise DataError("the ONI table came back in a shape we do not recognise")
+    return rows
+
+
 def geocode(name: str, count: int = 8) -> list[Place]:
     """Search for a place by name.
 
@@ -131,14 +201,26 @@ def geocode(name: str, count: int = 8) -> list[Place]:
     return out
 
 
-def era5_daily(lat: float, lon: float, start_year: int, end_year: int) -> dict[str, list]:
-    """Observed daily temperature from ERA5 for a span of whole years."""
+def era5_daily(lat: float, lon: float, start_year: int, end_year: int,
+               variables: Sequence[str] | None = None) -> dict[str, list]:
+    """Observed daily weather from ERA5 for a span of whole years."""
+    return era5_range(lat, lon, f"{start_year}-01-01", f"{end_year}-12-31",
+                      variables=variables)
+
+
+def era5_range(lat: float, lon: float, start_date: str, end_date: str,
+               variables: Sequence[str] | None = None) -> dict[str, list]:
+    """Observed daily weather from ERA5 between two explicit dates.
+
+    The ENSO composite needs to start in December of the year before its first
+    winter, which whole-year bounds cannot express.
+    """
     payload = _get(ARCHIVE_URL, {
         "latitude": round(lat, 4),
         "longitude": round(lon, 4),
-        "start_date": f"{start_year}-01-01",
-        "end_date": f"{end_year}-12-31",
-        "daily": ",".join(DAILY_VARS),
+        "start_date": start_date,
+        "end_date": end_date,
+        "daily": ",".join(variables or DAILY_VARS),
         "timezone": "UTC",
     }, cache="era5")
     return payload.get("daily", {})
