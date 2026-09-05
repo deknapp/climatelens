@@ -96,13 +96,22 @@ def _days_per_year(grouped: dict[int, list[tuple[date, float]]],
     return sum(counts) / len(counts) if counts else None
 
 
-def _frost_dates(grouped: dict[int, list[tuple[date, float]]]
+def _frost_dates(grouped: dict[int, list[tuple[date, float]]],
+                 southern: bool = False
                  ) -> tuple[float | None, float | None, float | None]:
     """Mean last-spring-frost, first-autumn-frost, and growing-season length.
 
-    Defined for the northern hemisphere convention: last frost before midsummer,
-    first frost after it. Returns (last_frost_doy, first_frost_doy, season_days).
+    This uses the northern-hemisphere convention -- last frost before midsummer,
+    first frost after it -- which is only meaningful when the growing season sits
+    inside one calendar year. South of the equator it straddles the new year, so
+    the same arithmetic would return a season running backwards. Rather than
+    report a wrong number we return nothing there; see the module docstring on
+    why an absent number beats a plausible one.
+
+    Returns (last_frost_doy, first_frost_doy, season_days).
     """
+    if southern:
+        return (None, None, None)
     lasts, firsts, seasons = [], [], []
     for days in grouped.values():
         if len(days) < 350:
@@ -121,8 +130,13 @@ def _frost_dates(grouped: dict[int, list[tuple[date, float]]]
     return (_mean(lasts), _mean(firsts), _mean(seasons))
 
 
-def normal(daily: dict, start_year: int, end_year: int) -> Normal:
-    """Reduce a daily series to one thirty-year normal."""
+def normal(daily: dict, start_year: int, end_year: int,
+           latitude: float | None = None) -> Normal:
+    """Reduce a daily series to one thirty-year normal.
+
+    `latitude` is needed only to know which hemisphere's growing-season
+    convention applies; every other indicator is latitude-independent.
+    """
     times = daily.get("time") or []
     tmax = daily.get("temperature_2m_max") or []
     tmin = daily.get("temperature_2m_min") or []
@@ -131,7 +145,8 @@ def normal(daily: dict, start_year: int, end_year: int) -> Normal:
     g_max = _by_year(times, tmax)
     g_min = _by_year(times, tmin)
 
-    last_f, first_f, season = _frost_dates(_by_year(times, tmin))
+    southern = latitude is not None and latitude < 0
+    last_f, first_f, season = _frost_dates(_by_year(times, tmin), southern)
 
     return Normal(
         start_year=start_year,

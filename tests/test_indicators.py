@@ -108,3 +108,17 @@ def test_projection_delta_is_withheld_without_a_model_baseline():
     mod_future = indicators.normal(series(2040, 2049, lambda d: 25.0, lambda d: 15.0), 2040, 2049)
     c = indicators.compare(obs_base, obs_recent, mod_future)
     assert "mean_c_2050" not in c.deltas
+
+
+def test_southern_hemisphere_growing_season_is_withheld_not_reversed():
+    """Below the equator the season straddles the new year, so the northern
+    convention would return a season running backwards. Report nothing."""
+    def lo(d): return -2.0 if d.month in (6, 7) else 8.0   # austral winter frost
+    daily = series(1951, 1980, lambda d: 20.0, lo)
+    south = indicators.normal(daily, 1951, 1980, latitude=-33.9)   # Sydney
+    assert south.growing_season_days is None
+    assert south.first_frost_doy is None
+    assert south.frost_days is not None      # frost counts are still valid
+
+    north = indicators.normal(daily, 1951, 1980, latitude=40.7)    # New York
+    assert north.growing_season_days is not None

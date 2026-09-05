@@ -66,8 +66,8 @@ def api_climate(
     except data.DataError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    base = indicators.normal(base_daily, *BASELINE)
-    recent = indicators.normal(recent_daily, *RECENT)
+    base = indicators.normal(base_daily, *BASELINE, latitude=latitude)
+    recent = indicators.normal(recent_daily, *RECENT, latitude=latitude)
 
     proj = proj_base = None
     if projection:
@@ -75,9 +75,11 @@ def api_climate(
             # Both windows come from the same model so its systematic bias
             # cancels in the difference -- see indicators.compare().
             proj = indicators.normal(
-                data.cmip6_daily(latitude, longitude, *PROJECTION), *PROJECTION)
+                data.cmip6_daily(latitude, longitude, *PROJECTION), *PROJECTION,
+                latitude=latitude)
             proj_base = indicators.normal(
-                data.cmip6_daily(latitude, longitude, *BASELINE), *BASELINE)
+                data.cmip6_daily(latitude, longitude, *BASELINE), *BASELINE,
+                latitude=latitude)
         except data.DataError as exc:
             # A missing projection is not fatal -- the observed record is the
             # headline and stands on its own.
