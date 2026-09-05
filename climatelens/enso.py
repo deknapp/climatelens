@@ -417,6 +417,12 @@ def report(oni: Sequence[dict], daily: dict) -> EnsoReport:
         "ERA5 precipitation is a model-assimilated field, not a rain gauge. Its "
         "totals are less trustworthy than its temperatures, especially in "
         "mountainous terrain.",
+        "Only the December-February window is composited, because that is when "
+        "ENSO peaks and when its influence away from the tropics is strongest. "
+        "Places whose ENSO signal falls in another season -- the Indonesian and "
+        "eastern Australian droughts peak in the dry season, roughly June to "
+        "November -- will show little here even though the teleconnection is "
+        "real. A weak result in this window is not evidence of no signal.",
     ]
 
     return EnsoReport(

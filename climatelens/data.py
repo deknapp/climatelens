@@ -97,10 +97,14 @@ def _get(url: str, params: dict[str, Any], *, cache: str | None = None,
             path.unlink(missing_ok=True)
 
     last: Exception | None = None
+    throttled = False
     for attempt in range(retries):
         try:
             resp = httpx.get(url, params=params, timeout=timeout)
             if resp.status_code == 429:
+                # Retried but not recorded as an exception, so without this
+                # flag an exhausted retry budget reported "None" as the cause.
+                throttled = True
                 time.sleep(2 * (attempt + 1))
                 continue
             resp.raise_for_status()
@@ -113,6 +117,11 @@ def _get(url: str, params: dict[str, Any], *, cache: str | None = None,
         except (httpx.HTTPError, json.JSONDecodeError) as exc:
             last = exc
             time.sleep(1.5 * (attempt + 1))
+    if throttled and last is None:
+        raise DataError(
+            "the climate archive is rate-limiting us. A seventy-year daily pull "
+            "is a large request; wait a minute and try again. Anything already "
+            "cached will still load instantly.")
     raise DataError(f"could not reach {url}: {last}")
 
 
