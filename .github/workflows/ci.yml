@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      # The suite is deliberately offline: no ERA5 calls, no Anthropic calls, no
+      # API key. If a test ever starts needing the network this job will say so
+      # rather than going quietly flaky.
+      - name: Test
+        env:
+          ANTHROPIC_API_KEY: ""
+        run: python -m pytest -q
+
+      - name: Check the app imports and the routes are wired
+        run: |
+          python - <<'PY'
+          from climatelens.api import app
+          paths = sorted(r.path for r in app.routes)
+          print("routes:", paths)
+          for expected in ("/api/climate", "/api/enso", "/api/explain", "/api/geocode", "/api/health"):
+              assert expected in paths, (expected, paths)
+          PY

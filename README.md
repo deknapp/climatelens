@@ -1,5 +1,7 @@
 # climatelens
 
+[![CI](https://github.com/deknapp/climatelens/actions/workflows/ci.yml/badge.svg)](https://github.com/deknapp/climatelens/actions/workflows/ci.yml)
+
 Pick anywhere on Earth and see what climate change has already done to it.
 
 Not a forecast and not a global average — the local record for one point,
