@@ -1,0 +1,301 @@
+{
+  "label": "Hobart, Tasmania",
+  "comparison": {
+    "latitude": -42.8821,
+    "longitude": 147.3272,
+    "grid_resolution_km": 25,
+    "baseline": {
+      "start_year": 1951,
+      "end_year": 1980,
+      "years_covered": 30,
+      "mean_c": 11.988766198211335,
+      "mean_max_c": 16.335754699762813,
+      "mean_min_c": 8.437680233619258,
+      "hot_days": 1.7666666666666666,
+      "very_hot_days": 0.3,
+      "warm_nights": 0.7,
+      "frost_days": 1.8333333333333333,
+      "growing_season_days": null,
+      "first_frost_doy": null,
+      "last_frost_doy": null
+    },
+    "recent": {
+      "start_year": 1995,
+      "end_year": 2024,
+      "years_covered": 30,
+      "mean_c": 12.332268662164562,
+      "mean_max_c": 16.64082861836098,
+      "mean_min_c": 8.87390947253153,
+      "hot_days": 2.466666666666667,
+      "very_hot_days": 0.6666666666666666,
+      "warm_nights": 1.3666666666666667,
+      "frost_days": 0.5666666666666667,
+      "growing_season_days": null,
+      "first_frost_doy": null,
+      "last_frost_doy": null
+    },
+    "projection": {
+      "start_year": 2040,
+      "end_year": 2049,
+      "years_covered": 10,
+      "mean_c": 13.412811387900367,
+      "mean_max_c": 17.809033670955415,
+      "mean_min_c": 9.91678072816864,
+      "hot_days": 7.1,
+      "very_hot_days": 2.7,
+      "warm_nights": 3.4,
+      "frost_days": 0.0,
+      "growing_season_days": null,
+      "first_frost_doy": null,
+      "last_frost_doy": null
+    },
+    "warming_c": 0.3435024639532269,
+    "warming_ci": [
+      0.16225885171045284,
+      0.5142441300496472
+    ],
+    "global_warming_c": 1.28,
+    "deltas": {
+      "mean_c": 0.3435024639532269,
+      "mean_max_c": 0.30507391859816835,
+      "mean_min_c": 0.43622923891227217,
+      "hot_days": 0.7000000000000002,
+      "very_hot_days": 0.36666666666666664,
+      "warm_nights": 0.6666666666666667,
+      "frost_days": -1.2666666666666666,
+      "growing_season_days": null,
+      "mean_c_2050": 1.5019517419795783,
+      "mean_max_c_2050": 1.7305156932222445,
+      "mean_min_c_2050": 1.4099364135126518,
+      "hot_days_2050": 5.199999999999999,
+      "very_hot_days_2050": 2.1,
+      "warm_nights_2050": 2.5,
+      "frost_days_2050": -0.16666666666666666,
+      "growing_season_days_2050": null
+    }
+  },
+  "enso": {
+    "latitude": -42.8821,
+    "longitude": 147.3272,
+    "current": {
+      "season": "JJA",
+      "year": 2026,
+      "anomaly": 1.8,
+      "state": "el_nino",
+      "strength": "strong",
+      "direction": "strengthening",
+      "seasons_at_this_state": 3,
+      "recent": [
+        {
+          "season": "JAS",
+          "year": 2025,
+          "anomaly": -0.26
+        },
+        {
+          "season": "ASO",
+          "year": 2025,
+          "anomaly": -0.43
+        },
+        {
+          "season": "SON",
+          "year": 2025,
+          "anomaly": -0.57
+        },
+        {
+          "season": "OND",
+          "year": 2025,
+          "anomaly": -0.61
+        },
+        {
+          "season": "NDJ",
+          "year": 2025,
+          "anomaly": -0.6
+        },
+        {
+          "season": "DJF",
+          "year": 2026,
+          "anomaly": -0.39
+        },
+        {
+          "season": "JFM",
+          "year": 2026,
+          "anomaly": -0.21
+        },
+        {
+          "season": "FMA",
+          "year": 2026,
+          "anomaly": 0.11
+        },
+        {
+          "season": "MAM",
+          "year": 2026,
+          "anomaly": 0.46
+        },
+        {
+          "season": "AMJ",
+          "year": 2026,
+          "anomaly": 0.95
+        },
+        {
+          "season": "MJJ",
+          "year": 2026,
+          "anomaly": 1.39
+        },
+        {
+          "season": "JJA",
+          "year": 2026,
+          "anomaly": 1.8
+        }
+      ],
+      "peak_season_note": {
+        "events": 22,
+        "peaks_by_season": [
+          [
+            "NDJ",
+            9
+          ],
+          [
+            "OND",
+            6
+          ],
+          [
+            "DJF",
+            4
+          ],
+          [
+            "SON",
+            2
+          ],
+          [
+            "ASO",
+            1
+          ]
+        ],
+        "winter_peaks": 19
+      }
+    },
+    "winters_used": 77,
+    "first_winter": 1950,
+    "last_winter": 2026,
+    "counts": {
+      "el_nino": 25,
+      "la_nina": 27,
+      "neutral": 25,
+      "strong_el_nino": 7
+    },
+    "composites": {
+      "el_nino": {
+        "temperature": {
+          "variable": "winter mean temperature",
+          "unit": "C",
+          "n": 25,
+          "anomaly": -0.020326876054351573,
+          "spread": 0.7508961406848585,
+          "hit_rate": 0.56,
+          "hits": 14,
+          "normal": 16.185424258281405,
+          "percent_of_normal": null,
+          "p_value": 0.8805119488051195
+        },
+        "precipitation": {
+          "variable": "winter total precipitation",
+          "unit": "mm",
+          "n": 25,
+          "anomaly": -7.686701298701228,
+          "spread": 42.261405670048006,
+          "hit_rate": 0.64,
+          "hits": 16,
+          "normal": 153.3636363636363,
+          "percent_of_normal": 94.98792446439161,
+          "p_value": 0.3955604439556044
+        }
+      },
+      "la_nina": {
+        "temperature": {
+          "variable": "winter mean temperature",
+          "unit": "C",
+          "n": 27,
+          "anomaly": 0.03596765564762187,
+          "spread": 0.8501931491177326,
+          "hit_rate": 0.6666666666666666,
+          "hits": 18,
+          "normal": 16.185424258281405,
+          "percent_of_normal": null,
+          "p_value": 0.7678232176782321
+        },
+        "precipitation": {
+          "variable": "winter total precipitation",
+          "unit": "mm",
+          "n": 27,
+          "anomaly": 13.808576998050748,
+          "spread": 65.45222404092986,
+          "hit_rate": 0.48148148148148145,
+          "hits": 13,
+          "normal": 153.3636363636363,
+          "percent_of_normal": 109.00381428444328,
+          "p_value": 0.09869013098690131
+        }
+      },
+      "neutral": {
+        "temperature": {
+          "variable": "winter mean temperature",
+          "unit": "C",
+          "n": 25,
+          "anomaly": -0.01851819204509134,
+          "spread": 0.7860221152420993,
+          "hit_rate": 0.52,
+          "hits": 13,
+          "normal": 16.185424258281405,
+          "percent_of_normal": null,
+          "p_value": 0.8855114488551145
+        },
+        "precipitation": {
+          "variable": "winter total precipitation",
+          "unit": "mm",
+          "n": 25,
+          "anomaly": -7.226561859193375,
+          "spread": 49.88143981197898,
+          "hit_rate": 0.72,
+          "hits": 18,
+          "normal": 153.3636363636363,
+          "percent_of_normal": 95.28795610840977,
+          "p_value": 0.4243575642435756
+        }
+      },
+      "strong_el_nino": {
+        "temperature": {
+          "variable": "winter mean temperature",
+          "unit": "C",
+          "n": 7,
+          "anomaly": 0.02268828145056721,
+          "spread": 0.9305638848779051,
+          "hit_rate": 0.42857142857142855,
+          "hits": 3,
+          "normal": 16.185424258281405,
+          "percent_of_normal": null,
+          "p_value": 0.934906509349065
+        },
+        "precipitation": {
+          "variable": "winter total precipitation",
+          "unit": "mm",
+          "n": 7,
+          "anomaly": -24.073205741626712,
+          "spread": 30.139531177392303,
+          "hit_rate": 0.8571428571428571,
+          "hits": 6,
+          "normal": 153.3636363636363,
+          "percent_of_normal": 84.30318534926533,
+          "p_value": 0.20577942205779423
+        }
+      }
+    },
+    "trend_c_per_decade": 0.04542159851587248,
+    "notes": [
+      "A winter here is December, January and February, named for the year its January falls in -- NOAA's convention.",
+      "Every anomaly is measured against the fitted linear trend across all winters, so the warming trend is not double-counted as an ENSO signal.",
+      "The hit rate is what matters for one coming winter. A large average shift that only half the events shared is not a useful expectation.",
+      "ERA5 precipitation is a model-assimilated field, not a rain gauge. Its totals are less trustworthy than its temperatures, especially in mountainous terrain.",
+      "Only the December-February window is composited, because that is when ENSO peaks and when its influence away from the tropics is strongest. Places whose ENSO signal falls in another season -- the Indonesian and eastern Australian droughts peak in the dry season, roughly June to November -- will show little here even though the teleconnection is real. A weak result in this window is not evidence of no signal."
+    ]
+  }
+}

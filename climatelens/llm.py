@@ -108,7 +108,12 @@ def explain(place_label: str, comparison: dict, *, enso: dict | None = None,
 
     response = client.messages.create(
         model=MODEL,
-        max_tokens=2000,
+        # 2000 was not enough. The prompt asks for four paragraphs plus a fifth
+        # on the Pacific, and with an ENSO block supplied the read-out ran past
+        # the limit and stopped mid-sentence -- on four of seven eval cases,
+        # silently, because a truncated string is still a string. Nothing in
+        # tests/ could catch that; evals/ caught it on its first run.
+        max_tokens=4000,
         system=SYSTEM,
         messages=[{
             "role": "user",
