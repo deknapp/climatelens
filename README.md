@@ -8,6 +8,15 @@ Not a forecast and not a global average — the local record for one point,
 computed from ERA5 reanalysis against a 1951–1980 baseline, next to a CMIP6
 projection for the 2040s.
 
+![climatelens showing Santa Fe: +1.2 °C since the 1951–1980 baseline, with a
+95% interval that spans the global figure, and six local indicators](docs/climatelens.png)
+
+Santa Fe is a good example of the point. It has warmed 1.2 °C — but the 95%
+interval runs 0.82 to 1.50, which contains the global 1.28, so the app says
+the record cannot separate the two rather than ranking the town against the
+planet. The largest local change is not heat at all: 19 fewer frost nights a
+year, and a growing season a week longer.
+
 ```bash
 git clone https://github.com/deknapp/climatelens && cd climatelens
 ./run.sh          # builds a venv on first run, serves http://127.0.0.1:8099
@@ -80,6 +89,10 @@ should not quietly depend on a data vendor happening to debias for us.
 An El Niño gets announced and the local question goes unanswered: *what does
 that mean here?* The usual answer is a continental map with a few arrows on
 it. This computes the answer for a point instead.
+
+![The Pacific panel: a strong El Niño, and what past El Niño winters actually
+did at this point — with the strong-events row reading "only 7 events — too few
+to tell"](docs/pacific.png)
 
 NOAA's index says which winters since 1950 were El Niño. ERA5 says what those
 winters were actually like at the chosen coordinates. The gap between the El
