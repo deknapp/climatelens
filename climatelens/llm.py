@@ -12,6 +12,7 @@ placed in a response body, a template, or anything the browser receives.
 from __future__ import annotations
 
 import json
+import os
 
 from .config import MODEL, anthropic_key
 
@@ -76,7 +77,23 @@ class LLMUnavailable(RuntimeError):
     """No API key configured. The app still works; only narration is off."""
 
 
+#: Hard off-switch for narration, independent of whether a key is present.
+#:
+#: A public deployment is the case this exists for. Narration is the only part
+#: of this application that costs money per visitor, and "we simply will not
+#: configure a key there" is a promise about an environment rather than a
+#: property of the code. With this set, no request can reach Anthropic even if
+#: a key finds its way into the process by some other route.
+DISABLE_ENV = "CLIMATELENS_DISABLE_NARRATION"
+
+
+def narration_disabled() -> bool:
+    return os.environ.get(DISABLE_ENV, "").strip().lower() in ("1", "true", "yes")
+
+
 def available() -> bool:
+    if narration_disabled():
+        return False
     return anthropic_key() is not None
 
 
@@ -88,6 +105,14 @@ def explain(place_label: str, comparison: dict, *, enso: dict | None = None,
     computed, it is handed over too, under the same rule as everything else --
     the model explains these numbers and may not supply its own.
     """
+    # Checked here as well as in available(): available() only governs whether
+    # the button appears, and a client can post to the endpoint regardless.
+    if narration_disabled():
+        raise LLMUnavailable(
+            "Narration is disabled on this deployment. Every number on the page "
+            "is computed from ERA5 and CMIP6 and is unaffected."
+        )
+
     key = anthropic_key()
     if key is None:
         raise LLMUnavailable(
