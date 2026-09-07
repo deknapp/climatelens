@@ -48,6 +48,28 @@ ENSO_VARS = ["temperature_2m_mean", "precipitation_sum"]
 # the full 1950-2050 span. Named in the UI so the choice is visible, not hidden.
 CMIP6_MODEL = "MRI_AGCM3_2_S"
 
+# Five models rather than one, because a single model's projection is a number
+# with no error bar and reads as far more certain than it is. Climate models
+# disagree, and the disagreement is information: where they agree, the signal
+# is robust; where they spread, the honest answer is a range.
+#
+# All five were probed at both ends of the record (a baseline year and a
+# projection year) before being listed here. The delta-change method needs each
+# model's *own* baseline, so a model that covers only the future is unusable --
+# differencing one model's projection against another's baseline reports the
+# difference between the models, not warming.
+#
+# Open-Meteo accepts several models in one request and suffixes each variable
+# with the model name, so this costs two requests in total rather than two per
+# model, which is what keeps it under the rate limit.
+CMIP6_MODELS = [
+    "MRI_AGCM3_2_S",
+    "CMCC_CM2_VHR4",
+    "FGOALS_f3_H",
+    "HiRAM_SIT_HR",
+    "EC_Earth3P_HR",
+]
+
 
 class DataError(RuntimeError):
     """A climate data source failed in a way the user should be told about."""
@@ -250,3 +272,52 @@ def cmip6_daily(lat: float, lon: float, start_year: int, end_year: int,
     # The climate API suffixes each variable with the model name; strip it so
     # callers see the same keys they get from ERA5.
     return {k.replace(f"_{model}", ""): v for k, v in daily.items()}
+
+
+def cmip6_daily_by_model(
+    lat: float,
+    lon: float,
+    start_year: int,
+    end_year: int,
+    models: list[str] | None = None,
+) -> dict[str, dict[str, list]]:
+    """The same window from several models, in one request.
+
+    Returns ``{model: daily}``, each ``daily`` keyed exactly as ERA5 is, so the
+    existing indicator code works on any of them unchanged.
+
+    A model that returns nothing is dropped rather than carried as an empty
+    series. Open-Meteo occasionally has a gap for one model at one point, and a
+    silently empty series would otherwise become a normal computed over no days
+    -- a number that looks like a projection and is not one.
+    """
+    models = models or CMIP6_MODELS
+    payload = _get(CLIMATE_URL, {
+        "latitude": round(lat, 4),
+        "longitude": round(lon, 4),
+        "start_date": f"{start_year}-01-01",
+        "end_date": f"{end_year}-12-31",
+        "models": ",".join(models),
+        "daily": ",".join(DAILY_VARS),
+    }, cache="cmip6")
+    daily = payload.get("daily", {})
+    time = daily.get("time", [])
+
+    by_model: dict[str, dict[str, list]] = {}
+    for model in models:
+        series = {
+            key[: -(len(model) + 1)]: values
+            for key, values in daily.items()
+            if key.endswith(f"_{model}")
+        }
+        if not series or not any(
+            any(v is not None for v in values) for values in series.values()
+        ):
+            log.warning("CMIP6 model %s returned no usable data; dropping it", model)
+            continue
+        series["time"] = time
+        by_model[model] = series
+
+    if not by_model:
+        raise DataError("No CMIP6 model returned data for this location.")
+    return by_model

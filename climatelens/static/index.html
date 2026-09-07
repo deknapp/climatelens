@@ -98,6 +98,16 @@
   footer { margin-top:38px; font-size:13px; color:var(--muted); line-height:1.6; }
   footer code { font-size:12px; }
   .hidden { display:none; }
+  .spread { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .spreadhead { font-size: .82rem; color: var(--ink); margin-bottom: 8px; font-weight: 600; }
+  .agree { color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .mrow { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; font-size: .72rem; }
+  .mname { width: 108px; color: var(--muted); }
+  .mtrack { flex: 1; height: 3px; background: var(--line); border-radius: 2px; position: relative; }
+  .mdot { position: absolute; top: -3px; width: 9px; height: 9px; margin-left: -4px;
+          border-radius: 50%; background: var(--warm); }
+  .mval { width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  .spreadnote { margin-top: 8px; font-size: .7rem; color: var(--muted); line-height: 1.45; }
 </style>
 </head>
 <body>
@@ -124,8 +134,12 @@
     gridded record, not the thermometer at your local airport. Two thirty-year
     climate normals are compared: <strong>1951–1980</strong> (the NASA GISTEMP
     baseline convention) against <strong>1995–2024</strong>.</p>
-    <p><strong>Projected:</strong> one downscaled CMIP6 model for the 2040s. One
-    model under one scenario — a projection, not a forecast.</p>
+    <p><strong>Projected:</strong> five downscaled CMIP6 models for the 2040s.
+    The headline figure is one named model so its numbers stay traceable to a
+    single coherent simulation; the range beneath it is what the other four
+    said. Each model is differenced against <em>its own</em> baseline, so its
+    systematic bias cancels rather than being reported as warming. Still one
+    scenario — a projection, not a forecast.</p>
     <p><strong>El Niño:</strong> the Oceanic Niño Index from NOAA's Climate
     Prediction Center says which winters since 1950 were El Niño; ERA5 says what
     those winters were like <em>here</em>. The two are composited locally. Every
@@ -252,10 +266,40 @@ function render(place, d) {
         <div class="rowline">annual mean against the same 1951–1980 baseline &middot;
           ${d.deltas.hot_days_2050 !== null && d.deltas.hot_days_2050 !== undefined
             ? `${signed(d.deltas.hot_days_2050,0)} days above 32 °C` : ""}</div>
+        ${spreadBlock(d.model_spread)}
       </div></div>` : ""}
     <div id="ensobox"><div class="enso"><h2>The Pacific</h2>
       <p class="sub">Reading NOAA's index and 77 winters of local weather…</p></div></div>
     <div class="narr hidden" id="narr"><h2>What this means here</h2><div id="narrbody"></div></div>`;
+}
+
+// The single headline number comes from one model. This shows what the other
+// four said, because a projection quoted without its spread reads as far more
+// certain than it is -- and where the models disagree, that disagreement is
+// the honest answer rather than a detail to tidy away.
+function spreadBlock(s) {
+  if (!s || !s.n_models || s.n_models < 2) return "";
+  const models = Object.entries(s.warming_c_by_model)
+    .sort((a, b) => a[1] - b[1]);
+  const lo = s.warming_c_low, hi = s.warming_c_high;
+  const span = (hi - lo) || 1;
+
+  const rows = models.map(([name, v]) => {
+    const left = ((v - lo) / span) * 100;
+    return `<div class="mrow">
+      <span class="mname">${name.replace(/_/g, " ")}</span>
+      <span class="mtrack"><span class="mdot" style="left:${left.toFixed(1)}%"></span></span>
+      <span class="mval">${signed(v, 1)}</span>
+    </div>`;
+  }).join("");
+
+  return `<div class="spread">
+    <div class="spreadhead">${s.n_models} models: ${signed(lo,1)} to ${signed(hi,1)} °C
+      <span class="agree">${s.agreement}</span></div>
+    ${rows}
+    <div class="spreadnote">The headline above is one model. Where these
+      disagree, the range is the answer — not the midpoint.</div>
+  </div>`;
 }
 
 async function narrate(place, d, enso) {

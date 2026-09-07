@@ -75,26 +75,47 @@ def api_climate(
     recent = indicators.normal(recent_daily, *RECENT, latitude=latitude)
 
     proj = proj_base = None
+    spread = None
     if projection:
         try:
-            # Both windows come from the same model so its systematic bias
-            # cancels in the difference -- see indicators.compare().
-            proj = indicators.normal(
-                data.cmip6_daily(latitude, longitude, *PROJECTION), *PROJECTION,
-                latitude=latitude)
-            proj_base = indicators.normal(
-                data.cmip6_daily(latitude, longitude, *BASELINE), *BASELINE,
-                latitude=latitude)
+            # Every model, in two requests. Each model is differenced against
+            # its *own* baseline so its systematic bias cancels -- see
+            # indicators.compare(). Crossing models here would report the
+            # difference between models as warming.
+            future_by_model = data.cmip6_daily_by_model(
+                latitude, longitude, *PROJECTION)
+            base_by_model = data.cmip6_daily_by_model(
+                latitude, longitude, *BASELINE)
+
+            per_model = {}
+            for model, future in future_by_model.items():
+                baseline = base_by_model.get(model)
+                if baseline is None:
+                    continue
+                per_model[model] = (
+                    indicators.normal(future, *PROJECTION, latitude=latitude),
+                    indicators.normal(baseline, *BASELINE, latitude=latitude),
+                )
+
+            spread = _model_spread(per_model)
+
+            # The headline still comes from one named model, so the numbers in
+            # the narration stay traceable to a single coherent simulation
+            # rather than being an average no model actually produced.
+            headline = data.CMIP6_MODEL if data.CMIP6_MODEL in per_model else next(
+                iter(per_model))
+            proj, proj_base = per_model[headline]
         except data.DataError as exc:
             # A missing projection is not fatal -- the observed record is the
             # headline and stands on its own.
             log.warning("projection unavailable for %s,%s: %s", latitude, longitude, exc)
             proj = proj_base = None
+            spread = None
 
     comparison = indicators.compare(base, recent, proj,
                                     global_warming_c=GLOBAL_WARMING_C,
                                     projection_baseline=proj_base)
-    return {
+    result = {
         "latitude": latitude,
         "longitude": longitude,
         "grid_resolution_km": data.ERA5_GRID_KM,
@@ -103,6 +124,59 @@ def api_climate(
             "projected": f"CMIP6 {data.CMIP6_MODEL} downscaled, via Open-Meteo",
         },
         **comparison.to_dict(),
+    }
+    if spread:
+        result["model_spread"] = spread
+        result["sources"]["projection_spread"] = (
+            f"{spread['n_models']} CMIP6 models: {', '.join(spread['models'])}"
+        )
+    return result
+
+
+def _model_spread(per_model: dict) -> dict | None:
+    """How much the models disagree about the warming at this point.
+
+    Each model is differenced against its own baseline first, so what is
+    compared across models is the *change* each one projects, not its absolute
+    temperature. Absolute temperatures differ between models mostly because of
+    their own biases, and comparing those would be measuring the models rather
+    than the climate.
+
+    The spread is reported as a range, not a standard deviation. Five models is
+    far too few for a distribution to mean anything, and quoting a sigma over
+    five numbers implies a precision that is not there.
+    """
+    deltas = {}
+    for model, (future, baseline) in per_model.items():
+        # A model missing either mean is skipped, but never silently: an
+        # earlier version caught AttributeError here and returned no spread at
+        # all when the field had simply been misnamed, which looked exactly
+        # like "the models agree" and was not.
+        if future.mean_c is None or baseline.mean_c is None:
+            log.warning("CMIP6 model %s has no mean temperature; excluded", model)
+            continue
+        deltas[model] = future.mean_c - baseline.mean_c
+
+    if len(deltas) < 2:
+        return None
+
+    values = sorted(deltas.values())
+    middle = len(values) // 2
+    median = (values[middle] if len(values) % 2
+              else (values[middle - 1] + values[middle]) / 2)
+
+    return {
+        "n_models": len(deltas),
+        "models": sorted(deltas),
+        "warming_c_by_model": {m: round(v, 2) for m, v in sorted(deltas.items())},
+        "warming_c_median": round(median, 2),
+        "warming_c_low": round(values[0], 2),
+        "warming_c_high": round(values[-1], 2),
+        "agreement": (
+            "all models warm" if values[0] > 0
+            else "models disagree on sign" if values[-1] > 0
+            else "all models cool"
+        ),
     }
 
 
