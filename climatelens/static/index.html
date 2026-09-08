@@ -152,6 +152,24 @@
 </div>
 
 <script>
+
+/* Read a response as JSON, but survive a server that answered with something
+   else. A 500 from FastAPI is an HTML page, and calling .json() on it reports
+   "Unexpected token 'I', \"Internal S\"..." — which tells the user nothing
+   about what actually failed and sounds like a bug in the page rather than in
+   the server. */
+async function readJson(r) {
+  const text = await r.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const snippet = text.trim().replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 120);
+    throw new Error(
+      r.ok ? "the server sent something that was not JSON"
+           : "the server failed (" + r.status + ")" + (snippet ? ": " + snippet : "")
+    );
+  }
+}
 const $ = s => document.querySelector(s);
 const fmt = (v, d=1) => v === null || v === undefined ? "—" : v.toFixed(d);
 const signed = (v, d=1) => v === null || v === undefined ? "—" : (v>0?"+":"") + v.toFixed(d);
@@ -170,7 +188,7 @@ $("#form").addEventListener("submit", async e => {
   setStatus("Searching…");
   try {
     const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
-    const { results } = await r.json();
+    const { results } = await readJson(r);
     setStatus(results.length ? "" : "No place by that name.");
     // Always list every match. "Santa Fe" is in Argentina before New Mexico.
     $("#results").innerHTML = results.map((p, i) =>
@@ -188,8 +206,9 @@ async function load(place) {
   let d;
   try {
     const r = await fetch(`/api/climate?latitude=${place.latitude}&longitude=${place.longitude}`);
-    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
-    d = await r.json();
+    const payload = await readJson(r);
+    if (!r.ok) throw new Error(payload.detail || r.statusText);
+    d = payload;
   } catch (err) { return setStatus("Could not load climate data: " + err.message); }
   setStatus("");
   render(place, d);
